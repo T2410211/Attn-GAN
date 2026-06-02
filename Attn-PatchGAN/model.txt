@@ -1,0 +1,44 @@
+import torch
+from torch.utils.data import DataLoader
+from models.generator import Generator
+from models.discriminator import Discriminator
+from losses.losses import ContentLoss, AdversarialLoss, SSIMLoss, PerceptualLoss
+from data.dataloader import PairedCTDataset, transform
+from engine.training import train, load_checkpoint
+
+if __name__ == "__main__":
+
+    # Set device
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # Instantiate models
+    generator = Generator()
+    discriminator = Discriminator()
+
+    # Optimizers
+    optimizer_G = torch.optim.Adam(generator.parameters(), lr=0.0002, betas=(0.5, 0.999))
+    optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=0.0002, betas=(0.5, 0.999))
+
+    # Losses
+    criterion_content = ContentLoss()
+    criterion_adv = AdversarialLoss()
+    criterion_ssim = SSIMLoss()
+    criterion_perceptual = PerceptualLoss()
+
+    # Dataset paths
+    low_dose_dir = r"C:\Users\T2410211\Desktop\train_test_split\train\ldct"
+    high_dose_dir = r"C:\Users\T2410211\Desktop\train_test_split\train\hdct"
+
+    # Dataset and DataLoader
+    dataset = PairedCTDataset(low_dose_dir, high_dose_dir, transform=transform)
+    dataloader = DataLoader(dataset, batch_size=1, shuffle=True, num_workers=16, pin_memory=True, drop_last=True)
+
+    # Load checkpoint if available
+    start_epoch = load_checkpoint(generator, optimizer_G, discriminator, optimizer_D)
+
+    # Train
+    train(generator, discriminator, dataloader, num_epochs=200,
+          optimizer_G=optimizer_G, optimizer_D=optimizer_D,
+          criterion_content=criterion_content, criterion_adv=criterion_adv,
+          criterion_ssim=criterion_ssim, criterion_perceptual=criterion_perceptual,
+          device=device, patience=30, start_epoch=start_epoch)
